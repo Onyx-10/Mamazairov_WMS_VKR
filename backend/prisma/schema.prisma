@@ -6,10 +6,240 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
+  // output   = "../generated/prisma" //
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  WAREHOUSE_KEEPER
+  MANAGER
+}
+
+model User {
+  id            String   @id @default(uuid())
+  username      String   @unique
+  password_hash String
+  full_name     String
+  role          UserRole @default(WAREHOUSE_KEEPER)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  created_inbound_shipments  InboundShipment[]  @relation("CreatedByInbound")
+  created_outbound_shipments OutboundShipment[] @relation("CreatedByOutbound")
+  stock_movements            StockMovement[]    @relation("PerformedByUser")
+}
+
+model ProductCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  products Product[]
+}
+
+model Supplier {
+  id             String   @id @default(uuid())
+  name           String
+  contact_person String?
+  phone          String?
+  email          String?  @unique
+  address        String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  products          Product[]
+  inbound_shipments InboundShipment[]
+}
+
+model Product {
+  id              String   @id @default(uuid())
+  name            String
+  sku             String   @unique
+  description     String?
+  unit_of_measure String
+  purchase_price  Decimal? @db.Decimal(10, 2)
+  min_stock_level Int?
+  max_stock_level Int?
+
+  category_id String?
+  category    ProductCategory? @relation(fields: [category_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  supplier_id String?
+  supplier    Supplier? @relation(fields: [supplier_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  cell_contents   CellContent[]
+  inbound_items   InboundShipmentItem[]
+  outbound_items  OutboundShipmentItem[]
+  stock_movements StockMovement[]
+}
+
+model StorageCell {
+  id                 String   @id @default(uuid())
+  code               String   @unique
+  description        String?
+  max_items_capacity Int
+  is_active          Boolean  @default(true)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  cell_contents   CellContent[]
+  inbound_items   InboundShipmentItem[] @relation("TargetStorageCell")
+  stock_movements StockMovement[]       @relation("CellForMovement")
+}
+
+model CellContent {
+  id              String   @id @default(uuid())
+  quantity        Int
+  last_updated_at DateTime @updatedAt // или @default(now()) @updatedAt ? Подумать. Для остатков лучше @updatedAt
+
+  product_id String
+  product    Product @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  storage_cell_id String
+  storage_cell    StorageCell @relation(fields: [storage_cell_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([product_id, storage_cell_id])
+}
+
+// === Модели для Приемок (Inbound Shipments) ===
+enum ShipmentStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model InboundShipment {
+  id                  String         @id @default(uuid())
+  document_number     String         @unique
+  status              ShipmentStatus @default(PLANNED)
+  expected_date       DateTime?
+  actual_receipt_date DateTime?
+  notes               String?
+
+  supplier_id String?
+  supplier    Supplier? @relation(fields: [supplier_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  created_by_user_id String
+  created_by         User   @relation("CreatedByInbound", fields: [created_by_user_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  items InboundShipmentItem[]
+}
+
+model InboundShipmentItem {
+  id                        String   @id @default(uuid())
+  quantity_expected         Int
+  quantity_received         Int
+  purchase_price_at_receipt Decimal? @db.Decimal(10, 2)
+
+  inbound_shipment_id String
+  inbound_shipment    InboundShipment @relation(fields: [inbound_shipment_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  product_id String
+  product    Product @relation(fields: [product_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  target_storage_cell_id String? // Ячейка, куда разместили товар
+  target_storage_cell    StorageCell? @relation("TargetStorageCell", fields: [target_storage_cell_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  StockMovement StockMovement?
+}
+
+// === Модели для Отгрузок (Outbound Shipments) ===
+enum OrderStatus {
+  NEW
+  PENDING_ASSEMBLY
+  ASSEMBLING
+  READY_FOR_SHIPMENT
+  SHIPPED
+  CANCELLED
+}
+
+model OutboundShipment {
+  id                    String      @id @default(uuid())
+  document_number       String      @unique
+  customer_details      String?
+  status                OrderStatus @default(NEW)
+  planned_shipping_date DateTime?
+  actual_shipping_date  DateTime?
+  notes                 String?
+
+  created_by_user_id String
+  created_by         User   @relation("CreatedByOutbound", fields: [created_by_user_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  items OutboundShipmentItem[]
+}
+
+model OutboundShipmentItem {
+  id                        String   @id @default(uuid())
+  quantity_ordered          Int
+  quantity_shipped          Int      @default(0)
+  selling_price_at_shipment Decimal? @db.Decimal(10, 2)
+
+  outbound_shipment_id String
+  outbound_shipment    OutboundShipment @relation(fields: [outbound_shipment_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  product_id String
+  product    Product @relation(fields: [product_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  // Здесь нужно будет решить, как отслеживать, из какой ячейки был взят товар.
+  // Либо это будет поле здесь, либо через StockMovements. Для начала оставим так.
+
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  StockMovement StockMovement?
+}
+
+// === Модель для Движений Товаров на Складе (Stock Movements) ===
+enum StockMovementType {
+  RECEIPT // Приемка
+  SHIPMENT // Отгрузка
+  TRANSFER // Внутреннее перемещение (если будет)
+  ADJUSTMENT_PLUS // Положительная корректировка (излишки инвентаризации)
+  ADJUSTMENT_MINUS // Отрицательная корректировка (недостача, списание)
+  INVENTORY_COUNT // Запись о фактическом количестве при инвентаризации (можно не использовать если только корректировки)
+}
+
+model StockMovement {
+  id               String            @id @default(uuid())
+  quantity_changed Int // Положительное для прихода/излишка, отрицательное для расхода/недостачи
+  type             StockMovementType
+  reason           String? // Причина для корректировок
+  occurred_at      DateTime          @default(now()) // Время фактической операции
+
+  product_id String
+  product    Product @relation(fields: [product_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  // Ячейка, с которой связана операция. Для перемещений может быть from_cell и to_cell
+  storage_cell_id String
+  storage_cell    StorageCell @relation("CellForMovement", fields: [storage_cell_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  user_id String
+  user    User   @relation("PerformedByUser", fields: [user_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  // Ссылки на документы-основания
+  inbound_shipment_item_id String?              @unique // Если это движение по позиции приемки
+  inbound_shipment_item    InboundShipmentItem? @relation(fields: [inbound_shipment_item_id], references: [id])
+
+  outbound_shipment_item_id String?               @unique // Если это движение по позиции отгрузки
+  outbound_shipment_item    OutboundShipmentItem? @relation(fields: [outbound_shipment_item_id], references: [id])
+
+  created_at DateTime @default(now())
 }
