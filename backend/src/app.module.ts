@@ -1,18 +1,21 @@
-
+// backend/src/app.module.ts
 import { Module } from '@nestjs/common'
-import { ConfigModule } from '@nestjs/config'; // <--- ДОБАВЬ ЭТОТ ИМПОРТ
+import { ConfigModule } from '@nestjs/config'; // <--- Импортируй
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
-import { PrismaModule } from './prisma/prisma.module'; // <--- ДОБАВЬ ЭТОТ ИМПОРТ
-import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module'; // <--- CLI должен был добавить это, когда ты генерировал auth module
+import { PrismaModule } from './prisma/prisma.module'
+import { UsersModule } from './users/users.module'
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ // <--- ДОБАВЬ ЭТУ СТРОКУ ДЛЯ ЗАГРУЗКИ .env
-      isGlobal: true,      // Делаем ConfigModule доступным глобально
+    ConfigModule.forRoot({ // <--- Сконфигурируй глобально
+      isGlobal: true, // Делает ConfigModule доступным во всем приложении без импорта в каждом модуле
+      envFilePath: '.env', // Указывает на наш .env файл
     }),
-    PrismaModule,
-    UsersModule,          // <--- ДОБАВЬ PrismaModule СЮДА
+    PrismaModule, // <--- Добавь PrismaModule сюда 
+    UsersModule,
+    AuthModule, // <--- Убедись, что AuthModule здесь есть
   ],
   controllers: [AppController],
   providers: [AppService],
