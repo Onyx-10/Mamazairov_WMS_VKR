@@ -4,13 +4,15 @@ import { ConfigModule } from '@nestjs/config'; // <--- ДОБАВЬ ЭТОТ И�
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
 import { PrismaModule } from './prisma/prisma.module'; // <--- ДОБАВЬ ЭТОТ ИМПОРТ
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ // <--- ДОБАВЬ ЭТУ СТРОКУ ДЛЯ ЗАГРУЗКИ .env
       isGlobal: true,      // Делаем ConfigModule доступным глобально
     }),
-    PrismaModule,          // <--- ДОБАВЬ PrismaModule СЮДА
+    PrismaModule,
+    UsersModule,          // <--- ДОБАВЬ PrismaModule СЮДА
   ],
   controllers: [AppController],
   providers: [AppService],
