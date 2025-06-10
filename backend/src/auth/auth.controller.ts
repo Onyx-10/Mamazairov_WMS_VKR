@@ -1,27 +1,52 @@
 // backend/src/auth/auth.controller.ts
-import { Body, Controller, HttpCode, HttpStatus, Post, Request, UseGuards } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Get, // Для DTO и Swagger
+  HttpCode,
+  HttpStatus,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common'
 import { AuthService } from './auth.service'
-import { LoginDto } from './dto/login.dto'; // Мы создадим этот DTO
-import { LocalAuthGuard } from './guards/local-auth.guard'; // Мы создадим этот Guard позже
+import { LoginDto } from './dto/login.dto'
+import { JwtAuthGuard } from './guards/jwt-auth.guard'; // <--- ИМПОРТИРУЙ JwtAuthGuard
+import { LocalAuthGuard } from './guards/local-auth.guard'
 
-@Controller('auth') // Префикс для всех роутов этого контроллера будет /auth
+// Для Swagger (опционально)
+// import { ApiTags, ApiOperation, ApiBody, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+
+// @ApiTags('auth')
+@Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private authService: AuthService) {}
 
-  // Эндпоинт для логина
-  // LocalAuthGuard будет использовать LocalStrategy (которую мы создадим) для проверки username/password
-  @UseGuards(LocalAuthGuard) // Защищаем этот роут с помощью LocalAuthGuard
+  // --- Эндпоинт для входа пользователя ---
+  // @ApiOperation({ summary: 'Log in a user and get a JWT' })
+  // @ApiBody({ type: LoginDto })
+  // @ApiResponse({ status: HttpStatus.OK, description: 'Login successful, returns JWT token.'})
+  // @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Invalid credentials.'})
+  @UseGuards(LocalAuthGuard)
   @Post('login')
-  @HttpCode(HttpStatus.OK) // Устанавливаем успешный статус 200 OK для логина
-  async login(@Request() req, @Body() loginDto: LoginDto) { // @Body() здесь для того, чтобы Swagger/OpenAPI видел DTO, но валидация идет через LocalAuthGuard
-    // Если LocalAuthGuard пропустил, значит req.user содержит объект пользователя
-    return this.authService.login(req.user); // req.user устанавливается LocalStrategy после успешной валидации
+  @HttpCode(HttpStatus.OK)
+  async login(@Request() req, @Body() loginDto: LoginDto) {
+    // req.user здесь содержит пользователя, возвращенного LocalStrategy.validate()
+    console.log('AuthController: User in request after LocalAuthGuard (login):', req.user); // Для отладки
+    return this.authService.login(req.user);
   }
 
-  // Опциональный эндпоинт для регистрации (если мы не хотим использовать POST /users)
-  // @Post('register')
-  // async register(@Body() createUserDto: CreateUserDto) {
-  //   // Валидация createUserDto будет выполнена глобальным ValidationPipe
-  //   return this.authService.register(createUserDto);
-  // }
+  // --- Эндпоинт для получения профиля текущего аутентифицированного пользователя ---
+  // @ApiOperation({ summary: 'Get current user profile' })
+  // @ApiBearerAuth() // Указывает Swagger, что этот эндпоинт требует Bearer токен
+  // @ApiResponse({ status: HttpStatus.OK, description: 'Current user profile data.'})
+  // @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized (token missing or invalid).'})
+  @UseGuards(JwtAuthGuard) // <--- ЗАЩИЩАЕМ ЭТОТ РОУТ с помощью JwtAuthGuard
+  @Get('profile')
+  getProfile(@Request() req) {
+    // Если JwtAuthGuard пропустил запрос, это означает, что JwtStrategy.validate()
+    // успешно вернула данные (например, объект пользователя), и они теперь в req.user.
+    console.log('AuthController: User in request after JwtAuthGuard (profile):', req.user); // Для отладки
+    return req.user; // req.user здесь содержит то, что вернула JwtStrategy.validate()
+  }
 }
