@@ -6,6 +6,7 @@ import { AppService } from './app.service'
 import { AuthModule } from './auth/auth.module'; // <--- CLI должен был добавить это, когда ты генерировал auth module
 import { PrismaModule } from './prisma/prisma.module'
 import { UsersModule } from './users/users.module'
+import { StorageCellsModule } from './storage-cells/storage-cells.module';
 
 @Module({
   imports: [
@@ -15,7 +16,8 @@ import { UsersModule } from './users/users.module'
     }),
     PrismaModule, // <--- Добавь PrismaModule сюда 
     UsersModule,
-    AuthModule, // <--- Убедись, что AuthModule здесь есть
+    AuthModule,
+    StorageCellsModule, // <--- Убедись, что AuthModule здесь есть
   ],
   controllers: [AppController],
   providers: [AppService],
