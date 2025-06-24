@@ -1,7 +1,6 @@
-// frontend/src/types/auth.ts (пример)
-export enum UserRole { // Можно продублировать enum с бэкенда или получать его как строку
-    MANAGER = 'MANAGER',
-    WAREHOUSE_KEEPER = 'WAREHOUSE_KEEPER',
+export enum UserRole {
+  MANAGER = 'MANAGER',
+  WAREHOUSE_KEEPER = 'WAREHOUSE_KEEPER',
 }
 
 export interface LoginCredentials {
@@ -19,5 +18,5 @@ export interface UserProfile {
   role: UserRole; // Используем enum
   full_name?: string;
   is_active?: boolean;
-  // Добавь другие поля, которые возвращает твой /auth/profile эндпоинт
+  // Добавь другие поля, которые фактически возвращает твой /auth/profile эндпоинт
 }

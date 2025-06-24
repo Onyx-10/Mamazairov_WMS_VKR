@@ -1,45 +1,32 @@
-// frontend/src/api/authService.ts
-import { AuthResponse, LoginCredentials, UserProfile } from '../types/auth'; // Предполагаемые типы
 import apiClient from './apiClient'
-
-// Определим типы (можно вынести в отдельный файл, например, src/types/auth.ts)
-// export interface LoginCredentials {
-//   username: string;
-//   password: string;
-// }
-
-// export interface AuthResponse {
-//   access_token: string;
-// }
-
-// export interface UserProfile {
-//   id: string;
-//   username: string;
-//   role: string; // Или UserRole enum, если он будет на фронте
-//   full_name?: string;
-//   is_active?: boolean;
-// }
-
+// Используем 'import type' для импорта только типов
+import type { AuthResponse, LoginCredentials, UserProfile } from '../types/auth'
 
 export const loginUser = async (credentials: LoginCredentials): Promise<AuthResponse> => {
   try {
+    // Указываем тип ожидаемого ответа для apiClient.post
     const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
-    if (response.data.access_token) {
+    if (response.data && response.data.access_token) { // Добавил проверку response.data
       localStorage.setItem('accessToken', response.data.access_token);
-      // Опционально: можно здесь же запросить /auth/profile и сохранить данные пользователя
+      // Опционально: можно здесь же запросить /auth/profile и сохранить данные пользователя,
+      // но лучше это делать отдельным вызовом после успешного логина в компоненте.
     }
     return response.data;
   } catch (error) {
-    // apiClient интерцептор уже может обработать 401, но здесь можно добавить доп. логику
-    console.error("Login failed:", error);
-    throw error; // Перебрасываем ошибку для обработки в компоненте
+    // apiClient интерцептор уже может обработать 401, 
+    // но здесь можно добавить специфическое логирование для операции логина.
+    console.error("Login API call failed:", error); 
+    throw error; // Перебрасываем ошибку для обработки в UI-компоненте
   }
 };
 
 export const fetchUserProfile = async (): Promise<UserProfile> => {
   try {
+    // Указываем тип ожидаемого ответа для apiClient.get
     const response = await apiClient.get<UserProfile>('/auth/profile');
-    localStorage.setItem('user', JSON.stringify(response.data)); // Сохраняем профиль
+    if (response.data) { // Добавил проверку response.data
+      localStorage.setItem('user', JSON.stringify(response.data)); // Сохраняем профиль
+    }
     return response.data;
   } catch (error) {
     console.error("Failed to fetch user profile:", error);
@@ -47,9 +34,14 @@ export const fetchUserProfile = async (): Promise<UserProfile> => {
   }
 };
 
-export const logoutUser = () => {
+export const logoutUser = (): void => { // Явно указал тип возврата void
   localStorage.removeItem('accessToken');
   localStorage.removeItem('user');
-  // Перенаправление на /login
-  window.location.href = '/login'; // Опять же, есть более "чистые" способы для SPA
+  // Перенаправление на /login.
+  // Для более "чистого" SPA-перенаправления лучше использовать useNavigate из react-router-dom
+  // на уровне компонента или через сервисы навигации, если они есть.
+  // Но window.location.href работает, хотя и вызывает полную перезагрузку.
+  if (window.location.pathname !== '/login') { // Чтобы избежать цикла редиректов, если уже на /login
+      window.location.href = '/login';
+  }
 };

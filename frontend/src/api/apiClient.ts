@@ -1,10 +1,9 @@
-// frontend/src/api/apiClient.ts
 import axios, {
-  type AxiosInstance,
-  type InternalAxiosRequestConfig,
   type AxiosError,
-  type AxiosResponse, // <--- ДОБАВЛЕН ИМПОРТ AxiosResponse
-} from 'axios';
+  type AxiosInstance,
+  type AxiosResponse,
+  type InternalAxiosRequestConfig,
+} from 'axios'
 
 // URL твоего backend API (возьми из переменных окружения Vite, если настроено, или захардкодь для начала)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'; // Убедись, что порт совпадает
