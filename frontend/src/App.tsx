@@ -4,9 +4,11 @@ import PrivateRoute from './components/auth/PrivateRoute'
 import { useAuth } from './contexts/AuthContext'
 import AppLayout from './layouts/AppLayout'
 import DashboardPage from './pages/DashboardPage'
+import InboundShipmentsPage from './pages/InboundShipmentsPage'
 import LoginPage from './pages/LoginPage'
-import ProductsPage from './pages/ProductsPage'; // Создай заглушку, если нет
-import StorageCellsPage from './pages/StorageCellsPage'; // Создай заглушку, если нет
+import OutboundShipmentsPage from './pages/OutboundShipmentsPage'
+import ProductsPage from './pages/ProductsPage'; // Создай заглушку пока
+import UsersPage from './pages/UsersPage'
 
 function App() {
   const { isAuthenticated, loading } = useAuth();
@@ -24,7 +26,9 @@ function App() {
       <Route element={<PrivateRoute />}> {/* Обертка для всех защищенных роутов */}
         <Route path="/dashboard" element={<AppLayout><DashboardPage /></AppLayout>} />
         <Route path="/products" element={<AppLayout><ProductsPage /></AppLayout>} />
-        <Route path="/storage-cells" element={<AppLayout><StorageCellsPage /></AppLayout>} />
+        <Route path="/inbound-shipments" element={<AppLayout><InboundShipmentsPage /></AppLayout>} />
+        <Route path="/outbound-shipments" element={<AppLayout><OutboundShipmentsPage /></AppLayout>} />
+        <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
         {/* Другие защищенные роуты */}
       </Route>
       

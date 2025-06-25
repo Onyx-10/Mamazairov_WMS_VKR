@@ -46,10 +46,16 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       onClick: () => { navigate('/products'); setDrawerVisible(false); },
     },
     {
-      key: '/storage-cells',
+      key: '/inbound-shipments',
       icon: <GoldOutlined />,
-      label: 'Ячейки',
-      onClick: () => { navigate('/storage-cells'); setDrawerVisible(false); },
+      label: 'Приёмка',
+      onClick: () => { navigate('/inbound-shipments'); setDrawerVisible(false); },
+    },
+    {
+      key: '/outbound-shipments',
+      icon: <GoldOutlined />,
+      label: 'Отгрузка',
+      onClick: () => { navigate('/outbound-shipments'); setDrawerVisible(false); },
     },
   ];
 
