@@ -1,20 +1,18 @@
-
-  // frontend/src/layouts/AppLayout.tsx
 import {
   AppstoreOutlined,
-  DashboardOutlined, // Для товаров, например
-  GoldOutlined, // Для профиля или пользователей
-  LogoutOutlined, // Для ячеек, например
-  UserOutlined, // Для профиля или пользователей
+  DashboardOutlined,
+  GoldOutlined,
+  LogoutOutlined,
+  MenuOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
-import { Avatar, Button, Layout, Menu, Space, Typography } from 'antd'; // Импортируем компоненты AntD
-import type { ReactNode } from 'react'; // Используем import type для ReactNode
-import React from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'; // Убедись, что путь правильный
+import { Avatar, Button, Drawer, Layout, Menu, Space, Typography } from 'antd'
+import type { ReactNode } from 'react'
+import React, { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
-const { Header, Content, Footer, Sider } = Layout; // Деструктурируем компоненты Layout
-const { Title } = Typography;
+const { Header, Content, Footer } = Layout;
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -22,102 +20,156 @@ interface AppLayoutProps {
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const { user, logout, isAuthenticated } = useAuth();
+  const location = useLocation(); // Для определения активного пункта меню
   const navigate = useNavigate();
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
-  // Если пользователь не аутентифицирован, не рендерим layout
-  // PrivateRoute уже должен был сделать редирект на /login
-  if (!isAuthenticated) {
-    // Можно вернуть null или специфический компонент/редирект,
-    // но обычно PrivateRoute не допустит сюда неаутентифицированного пользователя.
-    return null; 
+  if (!isAuthenticated && !user) { // Добавил проверку user для надежности после logout
+    return null;
   }
 
   const handleLogout = () => {
-    logout(); // logout из AuthContext уже делает редирект на /login
+    logout();
   };
 
-  // Определение пунктов меню в зависимости от роли пользователя
-  const getMenuItems = () => {
-    const items = [
-      {
-        key: '/dashboard',
-        icon: <DashboardOutlined />,
-        label: <Link to="/dashboard">Dashboard</Link>,
-      },
-      {
-        key: '/products',
-        icon: <AppstoreOutlined />,
-        label: <Link to="/products">Товары</Link>,
-      },
-      {
-        key: '/storage-cells',
-        icon: <GoldOutlined />,
-        label: <Link to="/storage-cells">Ячейки</Link>,
-      },
-      // Добавь сюда другие общие пункты меню
-    ];
+  const menuItems = [
+    {
+      key: '/dashboard',
+      icon: <DashboardOutlined />,
+      label: 'Dashboard',
+      onClick: () => { navigate('/dashboard'); setDrawerVisible(false); },
+    },
+    {
+      key: '/products',
+      icon: <AppstoreOutlined />,
+      label: 'Товары',
+      onClick: () => { navigate('/products'); setDrawerVisible(false); },
+    },
+    {
+      key: '/storage-cells',
+      icon: <GoldOutlined />,
+      label: 'Ячейки',
+      onClick: () => { navigate('/storage-cells'); setDrawerVisible(false); },
+    },
+  ];
 
-    if (user?.role === 'MANAGER') {
-      items.push({
-        key: '/users', // Пример страницы управления пользователями для менеджера
-        icon: <UserOutlined />,
-        label: <Link to="/users">Пользователи</Link>,
-      });
-    }
-    return items;
+  if (user?.role === 'MANAGER') {
+    menuItems.push({
+      key: '/users',
+      icon: <UserOutlined />,
+      label: 'Пользователи',
+      onClick: () => { navigate('/users'); setDrawerVisible(false); },
+    });
+  }
+
+  // Определяем активный ключ для Menu
+  // Ищем наиболее специфичный совпадающий путь
+  let activeKey = '/dashboard'; // Пункт по умолчанию
+  for (const item of menuItems.slice().reverse()) { // Идем с конца для специфичности
+      if (location.pathname.startsWith(item.key)) {
+          activeKey = item.key;
+          break;
+      }
+  }
+
+
+  const showDrawer = () => {
+    setDrawerVisible(true);
   };
 
-  // Определение текущего активного пункта меню на основе URL
-  const selectedKeys = [location.pathname]; // location из react-router-dom (если нужно, можно получить через useLocation)
-                                         // или можно сделать более сложную логику определения активного ключа
+  const onCloseDrawer = () => {
+    setDrawerVisible(false);
+  };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}> {/* Layout занимает всю высоту экрана */}
-      <Sider
-        breakpoint="lg" // Боковое меню будет скрываться на маленьких экранах
-        collapsedWidth="0" // Полностью скрывать при коллапсе (если не нужно состояние "узкого" меню)
-        theme="dark" // Темная тема для Sider
-        // можно добавить состояние для collapsed и кнопку для сворачивания/разворачивания
+    <Layout style={{ minHeight: '100vh' }}>
+      <Header style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          padding: '0 20px', // Уменьшил паддинг для мобильных
+          background: '#001529', // Темный фон хедера
+          color: 'white',
+          position: 'fixed', // Фиксированный хедер
+          zIndex: 10, // Чтобы был поверх контента
+          width: '100%'
+        }}
       >
-        <div style={{ height: '32px', margin: '16px', background: 'rgba(255, 255, 255, 0.2)', textAlign: 'center', lineHeight: '32px', color: 'white', borderRadius: '4px' }}>
-          WMS Logo
+        {/* Лого и название */}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <Typography.Title level={4} style={{ color: 'white', margin: 0, marginRight: '20px' }}>
+            WMS
+          </Typography.Title>
+          {/* Горизонтальное меню для десктопа */}
+          <Menu
+            theme="dark"
+            mode="horizontal"
+            selectedKeys={[activeKey]}
+            items={menuItems}
+            style={{ lineHeight: '62px', borderBottom: 'none', flexGrow: 1 }} // Убрал рамку и позволил расти
+            className="desktop-menu" // Класс для скрытия на мобильных
+          />
         </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          defaultSelectedKeys={['/dashboard']} // Пункт по умолчанию
-          selectedKeys={selectedKeys} // Активный пункт меню
-          items={getMenuItems()}
+
+        {/* Пользователь и кнопка выхода */}
+        <Space align="center" className="desktop-usermenu"> {/* Класс для скрытия на мобильных */}
+          {user && <Avatar icon={<UserOutlined />} style={{ marginRight: 8 }} />}
+          {user && <Typography.Text style={{ color: 'white', marginRight: 16 }}>{user.full_name || user.username} ({user.role})</Typography.Text>}
+          <Button type="primary" icon={<LogoutOutlined />} onClick={handleLogout} danger>
+            Выйти
+          </Button>
+        </Space>
+        
+        {/* Кнопка-гамбургер для мобильного меню */}
+        <Button 
+            type="primary" 
+            icon={<MenuOutlined />} 
+            onClick={showDrawer} 
+            className="mobile-menu-button" // Класс для показа только на мобильных
+            style={{border: 'none'}}
         />
-      </Sider>
-      <Layout>
-        <Header style={{ padding: '0 16px', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            {/* Здесь может быть кнопка для сворачивания Sider, если он не breakpoint-only */}
-            {/* <Title level={4} style={{ margin: 0, display: 'inline-block' }}>Заголовок страницы</Title> */}
-          </div>
-          <Space align="center">
+      </Header>
+
+      {/* Выдвижное боковое меню для мобильных */}
+      <Drawer
+        title="Меню"
+        placement="left"
+        onClose={onCloseDrawer}
+        open={drawerVisible} // Используем 'open' для AntD v5
+        styles={{ body: { padding: 0 } }}
+      >
+        <Menu
+          mode="inline"
+          selectedKeys={[activeKey]}
+          items={menuItems}
+          theme="light" // Можно light или dark
+        />
+        {/* Можно добавить информацию о пользователе и кнопку выхода и в Drawer */}
+         <div style={{ padding: '16px', borderTop: '1px solid #f0f0f0', marginTop: 'auto' }}>
             {user && <Avatar icon={<UserOutlined />} style={{ marginRight: 8 }} />}
-            {user && <Typography.Text strong style={{marginRight: 16}}>{user.full_name || user.username} ({user.role})</Typography.Text>}
-            <Button type="primary" icon={<LogoutOutlined />} onClick={handleLogout} danger>
+            {user && <Typography.Text strong>{user.full_name || user.username}</Typography.Text>}
+            <Button type="primary" icon={<LogoutOutlined />} onClick={handleLogout} danger block style={{marginTop: 16}}>
               Выйти
             </Button>
-          </Space>
-        </Header>
-        <Content style={{ margin: '24px 16px 0', overflow: 'initial' }}>
-          <div style={{ padding: 24, background: '#fff', minHeight: 'calc(100vh - 64px - 48px - 69px)' }}> 
-            {/* 64px - высота Header, 48px - отступы Content, 69px - высота Footer. 
-                Это нужно для того, чтобы Content занимал оставшееся место до Footer.
-                Более гибко это делается через Flexbox на родительском Layout, но и так сойдет для начала.
-                Или просто minHeight: 360 (стандарт AntD)
-            */}
-            {children} {/* Здесь будет рендериться содержимое текущей страницы */}
           </div>
-        </Content>
-        <Footer style={{ textAlign: 'center' }}>
-          Warehouse Management System ©{new Date().getFullYear()} Created by YourName
-        </Footer>
-      </Layout>
+      </Drawer>
+      
+      {/* Основной контент страницы */}
+      <Content style={{ 
+          padding: '24px', 
+          marginTop: '64px', // Отступ от фиксированного хедера
+          background: '#f0f2f5' // Фон для области контента
+        }}
+      >
+        <div style={{ background: '#fff', padding: 24, minHeight: 'calc(100vh - 64px - 48px - 69px)' }}>
+          {/* (minHeight расчет: 100vh - headerHeight - contentPaddingTopBottom - footerHeight) */}
+          {children}
+        </div>
+      </Content>
+
+      <Footer style={{ textAlign: 'center', background: '#f0f2f5' }}> {/* Фон футера */}
+        Warehouse Management System ©{new Date().getFullYear()} Created by {user?.full_name || "Kairat E. Mamazairov"}
+      </Footer>
     </Layout>
   );
 };

@@ -1,72 +1,41 @@
 // backend/src/storage-cells/storage-cells.controller.ts
 import {
-	Body,
-	Controller,
-	Delete,
-	Get,
-	HttpCode,
-	HttpStatus,
-	NotFoundException,
-	Param,
-	ParseUUIDPipe,
-	Patch,
-	Post,
-	UseGuards,
+  Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException,
+  Param, ParseUUIDPipe, Patch, Post, Request, UseGuards,
 } from '@nestjs/common'
 import { UserRole } from '@prisma/client'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../auth/guards/roles.guard'
+import { AddProductToCellDto } from './dto/add-product-to-cell.dto'
 import { CreateStorageCellDto } from './dto/create-storage-cell.dto'
+import { UpdateCellContentQuantityDto } from './dto/update-cell-content-quantity.dto'; // Этот DTO используется
 import { UpdateStorageCellDto } from './dto/update-storage-cell.dto'
-import { StorageCellsService } from './storage-cells.service'
-// import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { CellContentDetailed, StorageCellsService, StorageCellWithDetails } from './storage-cells.service'
 
-// @ApiTags('storage-cells')
 @Controller('storage-cells')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class StorageCellsController {
   constructor(private readonly storageCellsService: StorageCellsService) {}
 
-  // --- Создание ячейки хранения (только для MANAGER) ---
-  // @ApiOperation({ summary: 'Create a new storage cell (MANAGER only)' })
-  // @ApiBearerAuth()
-  // @ApiBody({ type: CreateStorageCellDto })
-  // @ApiResponse({ status: HttpStatus.CREATED, description: 'Storage cell created successfully.' })
-  // @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data.' })
-  // @ApiResponse({ status: HttpStatus.CONFLICT, description: 'Storage cell code already exists.' })
-  // @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized.' })
-  // @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden (User is not a MANAGER).' })
+  // --- CRUD для самих ячеек ---
+  // ... (методы create, findAll, findOne (для ячеек), update (для ячеек), remove (для ячеек) остаются БЕЗ ИЗМЕНЕНИЙ)
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.MANAGER)
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createStorageCellDto: CreateStorageCellDto) {
     return this.storageCellsService.create(createStorageCellDto);
   }
 
-  // --- Получение списка всех (активных) ячеек (MANAGER и WAREHOUSE_KEEPER) ---
-  // @ApiOperation({ summary: 'Get all active storage cells (MANAGER & WAREHOUSE_KEEPER)' })
-  // @ApiBearerAuth()
-  // @ApiResponse({ status: HttpStatus.OK, description: 'List of active storage cells.' })
-  // @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized.' })
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard) // RolesGuard здесь применится, но @Roles определяет, кто пройдет
-  @Roles(UserRole.MANAGER, UserRole.WAREHOUSE_KEEPER) // Обе роли могут просматривать
-  async findAll() {
+  @Roles(UserRole.MANAGER, UserRole.WAREHOUSE_KEEPER)
+  async findAll(): Promise<StorageCellWithDetails[]> {
     return this.storageCellsService.findAll();
   }
 
-  // --- Получение одной ячейки по ID (MANAGER и WAREHOUSE_KEEPER) ---
-  // @ApiOperation({ summary: 'Get a storage cell by ID (MANAGER & WAREHOUSE_KEEPER)' })
-  // @ApiBearerAuth()
-  // @ApiParam({ name: 'id', type: 'string', format: 'uuid', description: 'Storage Cell ID' })
-  // @ApiResponse({ status: HttpStatus.OK, description: 'Storage cell data.' })
-  // @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Storage cell not found.' })
-  // @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized.' })
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.MANAGER, UserRole.WAREHOUSE_KEEPER)
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<StorageCellWithDetails> {
     const cell = await this.storageCellsService.findOneById(id);
     if (!cell) {
       throw new NotFoundException(`Storage cell with ID "${id}" not found.`);
@@ -74,19 +43,7 @@ export class StorageCellsController {
     return cell;
   }
 
-  // --- Обновление ячейки по ID (только для MANAGER) ---
-  // @ApiOperation({ summary: 'Update a storage cell by ID (MANAGER only)' })
-  // @ApiBearerAuth()
-  // @ApiParam({ name: 'id', type: 'string', format: 'uuid', description: 'Storage Cell ID' })
-  // @ApiBody({ type: UpdateStorageCellDto })
-  // @ApiResponse({ status: HttpStatus.OK, description: 'Storage cell updated successfully.' })
-  // @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Storage cell not found.' })
-  // @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data.' })
-  // @ApiResponse({ status: HttpStatus.CONFLICT, description: 'Storage cell code already exists.' })
-  // @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized.' })
-  // @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden (User is not a MANAGER).' })
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.MANAGER)
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -95,20 +52,78 @@ export class StorageCellsController {
     return this.storageCellsService.update(id, updateStorageCellDto);
   }
 
-  // --- Удаление ячейки по ID (только для MANAGER) ---
-  // @ApiOperation({ summary: 'Delete a storage cell by ID (MANAGER only)' })
-  // @ApiBearerAuth()
-  // @ApiParam({ name: 'id', type: 'string', format: 'uuid', description: 'Storage Cell ID' })
-  // @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Storage cell deleted successfully.' })
-  // @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Storage cell not found.' })
-  // @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized.' })
-  // @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden (User is not a MANAGER).' })
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.MANAGER)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.storageCellsService.remove(id);
-    // Для статуса 204 (NO_CONTENT) не должно быть тела ответа.
+  }
+
+
+  // --- Эндпоинты для управления содержимым конкретной ячейки ---
+
+  @Get(':cellId/contents')
+  @Roles(UserRole.MANAGER, UserRole.WAREHOUSE_KEEPER)
+  async getCellContents(@Param('cellId', ParseUUIDPipe) cellId: string): Promise<CellContentDetailed[]> {
+    return this.storageCellsService.findCellContents(cellId);
+  }
+
+  @Post(':cellId/contents')
+  @Roles(UserRole.MANAGER, UserRole.WAREHOUSE_KEEPER)
+  @HttpCode(HttpStatus.OK)
+  async addProductToCell(
+    @Param('cellId', ParseUUIDPipe) cellId: string,
+    @Body() addProductToCellDto: AddProductToCellDto,
+    @Request() req,
+  ): Promise<CellContentDetailed> {
+    const userId = req.user.id;
+    return this.storageCellsService.addProductToCell(
+      cellId,
+      addProductToCellDto.productId,
+      addProductToCellDto.quantity,
+      userId,
+    );
+  }
+
+  @Patch('contents/:cellContentId/quantity')
+  @Roles(UserRole.MANAGER, UserRole.WAREHOUSE_KEEPER)
+  @HttpCode(HttpStatus.OK)
+  async updateProductQuantityInCell(
+    @Param('cellContentId', ParseUUIDPipe) cellContentId: string,
+    @Body() updateDto: UpdateCellContentQuantityDto, // DTO с { quantity: number }
+    @Request() req,
+  ): Promise<CellContentDetailed | { message: string }> {
+    const userId = req.user.id;
+    const result = await this.storageCellsService.updateProductQuantityInCell(
+      cellContentId,
+      updateDto.quantity,
+      userId,
+    );
+    if (result === null) {
+        return { message: 'Product record removed from cell as quantity became zero.' };
+    }
+    return result;
+  }
+
+  // Удалить ПОЛНОСТЬЮ товар (запись CellContent) из ячейки
+  // Теперь вызывает updateProductQuantityInCell с quantity = 0
+  @Delete('contents/:cellContentId')
+  @Roles(UserRole.MANAGER, UserRole.WAREHOUSE_KEEPER)
+  @HttpCode(HttpStatus.OK) // Возвращаем сообщение, т.к. сервис теперь может вернуть null или объект
+  async deleteProductFromCell(
+    @Param('cellContentId', ParseUUIDPipe) cellContentId: string,
+    @Request() req,
+  ): Promise<{ message: string }> { // Явно указываем тип возвращаемого значения
+    const userId = req.user.id;
+    const result = await this.storageCellsService.updateProductQuantityInCell(
+      cellContentId,
+      0, // Устанавливаем количество в 0 для удаления
+      userId,
+    );
+    // Сервис updateProductQuantityInCell вернет null, если запись была удалена.
+    // Здесь мы просто возвращаем сообщение об успехе.
+    // В реальном приложении можно было бы вернуть 204 No Content, если result === null,
+    // но это потребует использования @Res() и response.status(204).send().
+    return { message: `Product content (ID: ${cellContentId}) processed for removal.` };
   }
 }

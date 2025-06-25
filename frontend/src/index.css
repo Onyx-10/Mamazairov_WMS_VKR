@@ -1,40 +1,83 @@
-:root {
+/* frontend/src/index.css */
+
+/* 1. Глобальный сброс и box-sizing */
+html,
+body,
+#root { /* #root - это div, куда монтируется ваше React-приложение */
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%; /* Занимаем всю доступную высоту */
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  box-sizing: inherit; /* Наследуем box-sizing для всех элементов */
+}
+
+/* 2. Базовые стили для body */
+body {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
+  min-width: 320px; /* Минимальная ширина для адаптивности */
+  
+  /* Настройки цветовой схемы (применяются через :root ниже) */
+  color-scheme: light dark; 
+}
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
+/* 3. Стили для :root (глобальные переменные CSS или стили для html) */
+:root {
+  /* Эти настройки влияют на рендеринг текста */
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Цвета по умолчанию (предпочтение темной теме, если браузер поддерживает) */
+  /* Эти цвета будут переопределены медиа-запросами ниже */
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
 }
 
+/* 4. Стили для светлой темы */
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff; /* Белый фон для светлой темы */
+  }
+  /* Стили для ссылок и кнопок в светлой теме можно оставить здесь,
+     если они отличаются от темной темы и не перекрываются Ant Design */
+  a:hover {
+    color: #747bff;
+  }
+  /* Стили для нативных кнопок, Ant Design Button будет иметь свои */
+  button { 
+    background-color: #f9f9f9;
+  }
+}
+
+/* 5. Общие стили для ссылок и заголовков (могут быть переопределены Ant Design) */
 a {
   font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+  color: #646cff; /* Базовый цвет ссылки, если не определен темой */
+  text-decoration: inherit; /* Убираем подчеркивание по умолчанию */
 }
 a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  /* Для темной темы (если :root темный по умолчанию), можно оставить #535bf2 */
+  /* Для светлой темы уже есть свой a:hover выше */
+  color: #535bf2; 
 }
 
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
+  margin-top: 0; /* Часто полезно сбросить верхний отступ у h1 */
+  margin-bottom: 0.5em; /* Добавить немного отступа снизу */
 }
 
+/* 6. Стили для нативных HTML кнопок */
+/* Имейте в виду, что Ant Design <Button> будет выглядеть иначе */
 button {
   border-radius: 8px;
   border: 1px solid transparent;
@@ -42,27 +85,28 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  /* background-color по умолчанию будет зависеть от темы (см. @media) */
   cursor: pointer;
   transition: border-color 0.25s;
 }
 button:hover {
-  border-color: #646cff;
+  border-color: #646cff; /* Цвет рамки при наведении */
 }
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 4px auto -webkit-focus-ring-color; /* Стандартный outline для фокуса */
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+/* Стили для адаптивного меню */
+.mobile-menu-button {
+  display: none !important; /* Скрываем гамбургер по умолчанию */
+}
+
+@media (max-width: 767px) { /* Или другая ширина для breakpoint'а */
+  .desktop-menu, .desktop-usermenu {
+    display: none !important; /* Скрываем десктопное меню и инфо о юзере на мобильных */
   }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+  .mobile-menu-button {
+    display: inline-block !important; /* Показываем гамбургер на мобильных */
   }
 }
