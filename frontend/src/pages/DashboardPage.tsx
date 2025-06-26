@@ -1,4 +1,3 @@
-// frontend/src/pages/DashboardPage.tsx
 import {
   DeleteOutlined,
   EditOutlined,
@@ -17,6 +16,7 @@ import {
   message,
   Modal,
   Progress,
+  Radio,
   Row,
   Select, Space,
   Spin,
@@ -32,15 +32,15 @@ import {
   fetchCellContents,
   fetchStorageCells,
   updateProductQuantityInCellApi,
-} from '../api/storageCellService'
-import GlobalSearchBar from '../components/common/SearchBar'
+} from '../api/storageCellService'; // Убедись, что все эти функции экспортируются
+import GlobalSearchBar from '../components/common/SearchBar'; // Путь к твоему компоненту
 import { useAuth } from '../contexts/AuthContext'
 import type {
   CellContentDetailedItem,
   CreateStorageCellDtoFE,
   ProductBasicInfo,
-  StorageCell, // Убедись, что этот тип определен в types/entities.ts
-  UpdateStorageCellDtoFE // И этот тоже
+  StorageCell, // Убедись, что эти типы существуют
+  UpdateStorageCellDtoFE // и импортированы из твоего types/entities.ts
 } from '../types/entities'
 
 const { Title, Text } = Typography;
@@ -48,6 +48,7 @@ const { Title, Text } = Typography;
 interface ProductSearchResult { id: string; name: string; sku: string; type: 'product'; locations?: { code: string; cellId: string }[]; }
 interface StorageCellSearchResult { id: string; code: string; description?: string | null; type: 'storage-cell'; contents?: { name: string; productId: string; quantity: number }[]; }
 type SearchResultItem = ProductSearchResult | StorageCellSearchResult;
+type CellActivityFilter = 'all' | 'active' | 'inactive';
 
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -58,6 +59,7 @@ const DashboardPage: React.FC = () => {
 
   const [storageCells, setStorageCells] = useState<StorageCell[]>([]);
   const [loadingCells, setLoadingCells] = useState(true);
+  const [cellActivityFilter, setCellActivityFilter] = useState<CellActivityFilter>('active');
 
   const [selectedCell, setSelectedCell] = useState<StorageCell | null>(null);
   const [modalCellContents, setModalCellContents] = useState<CellContentDetailedItem[]>([]);
@@ -68,18 +70,23 @@ const DashboardPage: React.FC = () => {
   const [productForOperation, setProductForOperation] = useState<string | undefined>(undefined);
   const [quantityForOperation, setQuantityForOperation] = useState<number>(1);
 
-  // Состояния и форма для создания/редактирования ячейки
   const [isEditOrCreateCellModalVisible, setIsEditOrCreateCellModalVisible] = useState(false);
-  const [editingCell, setEditingCell] = useState<StorageCell | null>(null); // null для создания, объект для редактирования
-  const [cellForm] = Form.useForm<CreateStorageCellDtoFE | UpdateStorageCellDtoFE>(); // Типизируем форму
+  const [editingCell, setEditingCell] = useState<StorageCell | null>(null);
+  const [cellForm] = Form.useForm<CreateStorageCellDtoFE | UpdateStorageCellDtoFE>();
   const [loadingCellForm, setLoadingCellForm] = useState(false);
 
   const loadStorageCells = useCallback(async () => {
     setLoadingCells(true);
-    try { const cells = await fetchStorageCells(); setStorageCells(cells); }
-    catch (error) { message.error('Не удалось загрузить ячейки склада'); console.error('Load cells error:', error); } 
+    try {
+      let filterQueryParam: 'true' | 'false' | undefined = undefined;
+      if (cellActivityFilter === 'active') filterQueryParam = 'true';
+      else if (cellActivityFilter === 'inactive') filterQueryParam = 'false';
+      
+      const cells = await fetchStorageCells(filterQueryParam);
+      setStorageCells(cells);
+    } catch (error) { message.error('Не удалось загрузить ячейки склада'); console.error('Load cells error:', error); } 
     finally { setLoadingCells(false); }
-  }, []);
+  }, [cellActivityFilter]);
 
   useEffect(() => { loadStorageCells(); }, [loadStorageCells]);
 
@@ -135,72 +142,66 @@ const DashboardPage: React.FC = () => {
   };
 
   const handleAddOrUpdateCellContent = async (isAddingAction: boolean) => {
-    if (!selectedCell || !productForOperation || quantityForOperation < 0) {
+    if (!selectedCell || !productForOperation || quantityForOperation < 0) { // Разрешаем 0 для "убрать все", но кнопка "добавить" должна иметь >0
       message.error('Выберите товар и укажите корректное количество.'); return;
     }
+    
     setLoadingModalDetails(true);
     let itemInCellToOperate = modalCellContents.find(item => item.product.id === productForOperation);
+
     try {
       let newQuantityInCell: number; let operationPerformed = false;
       if (isAddingAction) {
-        if (itemInCellToOperate) {
+        if (quantityForOperation <= 0) { message.error('Количество для добавления/увеличения должно быть больше 0.'); setLoadingModalDetails(false); return;}
+        if (itemInCellToOperate) { // Увеличить существующий
           newQuantityInCell = itemInCellToOperate.quantity + quantityForOperation;
-          if (quantityForOperation <= 0) { message.error('Количество для увеличения должно быть больше 0.'); setLoadingModalDetails(false); return;}
           await updateProductQuantityInCellApi(itemInCellToOperate.id, { quantity: newQuantityInCell });
           message.success(`Количество товара "${itemInCellToOperate.product.name}" увеличено.`);
-          operationPerformed = true;
-        } else {
-          if (quantityForOperation <= 0) { message.error('Количество для добавления должно быть больше 0.'); setLoadingModalDetails(false); return; }
+        } else { // Добавить новый
           await addProductToCellApi(selectedCell.id, { productId: productForOperation, quantity: quantityForOperation });
           message.success(`Товар успешно добавлен в ячейку ${selectedCell.code}`);
-          operationPerformed = true;
         }
-      } else {
+        operationPerformed = true;
+      } else { // Убрать или Уменьшить (quantityForOperation - это сколько убрать)
         if (!itemInCellToOperate) { message.error('Выбранный товар для списания отсутствует.'); setLoadingModalDetails(false); return; }
         if (quantityForOperation > itemInCellToOperate.quantity) { message.error(`Нельзя списать ${quantityForOperation} шт. В ячейке ${itemInCellToOperate.quantity} шт.`); setLoadingModalDetails(false); return; }
+        
         newQuantityInCell = itemInCellToOperate.quantity - quantityForOperation;
         await updateProductQuantityInCellApi(itemInCellToOperate.id, { quantity: newQuantityInCell });
         if (newQuantityInCell === 0) message.success(`Товар "${itemInCellToOperate.product.name}" полностью удален.`);
         else message.success(`Количество "${itemInCellToOperate.product.name}" уменьшено.`);
         operationPerformed = true;
       }
+
       if (operationPerformed) {
         const updatedContents = await fetchCellContents(selectedCell.id);
         setModalCellContents(updatedContents);
+        // Оптимистичное обновление или полная перезагрузка списка ячеек
         const updatedSelectedCellResponse = await apiClient.get<StorageCell>(`/storage-cells/${selectedCell.id}`);
         if (updatedSelectedCellResponse.data) {
-          setSelectedCell(updatedSelectedCellResponse.data);
+          setSelectedCell(updatedSelectedCellResponse.data); // Обновляем selectedCell с новым current_occupancy
           setStorageCells(prevCells => prevCells.map(sc => sc.id === selectedCell.id ? updatedSelectedCellResponse.data : sc));
-        } else { loadStorageCells(); }
+        } else { loadStorageCells(); } // Fallback
         setProductForOperation(undefined); setQuantityForOperation(1);
       }
     } catch (error: any) { message.error(error.response?.data?.message || 'Операция с товаром не удалась.'); console.error('Cell content operation error:', error);
     } finally { setLoadingModalDetails(false); }
   };
   
-  // --- Функции для CRUD самих ЯЧЕЕК (Раскомментированы и используются) ---
   const openCreateCellModal = () => {
-    setEditingCell(null); 
-    cellForm.resetFields();
-    cellForm.setFieldsValue({ is_active: true, max_items_capacity: 100 }); // Устанавливаем значения по умолчанию для НОВОЙ ячейки
+    setEditingCell(null); cellForm.resetFields();
+    cellForm.setFieldsValue({ is_active: true, max_items_capacity: 100 }); // Устанавливаем значения по умолчанию
     setIsEditOrCreateCellModalVisible(true);
   };
 
   const openEditCellModal = (cell: StorageCell) => {
     setEditingCell(cell); 
-    cellForm.setFieldsValue({ // Заполняем форму текущими значениями
-      code: cell.code,
-      description: cell.description || '', 
-      max_items_capacity: cell.max_items_capacity,
-      is_active: cell.is_active,
-    });
+    cellForm.setFieldsValue({ code: cell.code, description: cell.description || '', max_items_capacity: cell.max_items_capacity, is_active: cell.is_active });
     setIsEditOrCreateCellModalVisible(true);
   };
 
   const handleEditOrCreateCellModalClose = () => {
-    setIsEditOrCreateCellModalVisible(false); 
-    setEditingCell(null); 
-    cellForm.resetFields();
+    setIsEditOrCreateCellModalVisible(false); setEditingCell(null); cellForm.resetFields();
   };
 
   const handleCellFormSubmit = async (values: CreateStorageCellDtoFE | UpdateStorageCellDtoFE) => {
@@ -213,14 +214,11 @@ const DashboardPage: React.FC = () => {
         await apiClient.post('/storage-cells', values);
         message.success(`Ячейка ${(values as CreateStorageCellDtoFE).code} успешно создана.`);
       }
-      loadStorageCells(); 
-      handleEditOrCreateCellModalClose(); 
+      loadStorageCells(); handleEditOrCreateCellModalClose(); 
     } catch (error: any) { 
       message.error(error.response?.data?.message || `Не удалось ${editingCell ? 'обновить' : 'создать'} ячейку.`); 
       console.error("Cell form submit error:", error);
-    } finally { 
-      setLoadingCellForm(false); 
-    }
+    } finally { setLoadingCellForm(false); }
   };
 
   const handleDeleteCell = (cellId: string, cellCode: string) => {
@@ -247,14 +245,20 @@ const DashboardPage: React.FC = () => {
   });
   OccupancyProgress.displayName = 'OccupancyProgress';
 
-  if (loadingCells && storageCells.length === 0) { return ( <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 128px)' }}> <Spin size="large" tip="Загрузка данных склада..." /> </div> ); }
+  if (loadingCells && storageCells.length === 0) { 
+    return ( 
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 128px)' }}> 
+        <Spin size="large" tip="Загрузка данных склада..." /> 
+      </div> 
+    ); 
+  }
 
   return (
     <div style={{ padding: '20px' }}>
       <Title level={2} style={{ marginBottom: '20px' }}>Главная панель</Title>
       <Row gutter={[16,24]} style={{marginBottom: 24}}>
         <Col span={24}> <GlobalSearchBar onSearch={handleGlobalSearch} loading={loadingSearch} /> </Col>
-        {loadingSearch && <Col span={24} style={{ textAlign: 'center' }}><Spin><div style={{padding:20, minHeight:50}}/></Spin></Col>} {/* Обернул в div для tip */}
+        {loadingSearch && <Col span={24} style={{ textAlign: 'center' }}><Spin tip="Поиск..."><div style={{padding:20, minHeight:50}} /></Spin></Col>}
         {!loadingSearch && searchTerm && searchResults.length === 0 && ( <Col span={24}><Empty description={`По запросу "${searchTerm}" ничего не найдено.`} /></Col> )}
         {searchResults.length > 0 && (
           <Col span={24}> <Card title={`Результаты поиска: "${searchTerm}"`}> <List itemLayout="horizontal" dataSource={searchResults} renderItem={renderSearchResultItem} /> </Card> </Col>
@@ -263,30 +267,44 @@ const DashboardPage: React.FC = () => {
       
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <Title level={3} style={{ margin: 0 }}>Складские ячейки</Title>
-          {user?.role === 'MANAGER' && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={openCreateCellModal}> {/* РАСКОММЕНТИРОВАНО И РАБОТАЕТ */}
-                  Добавить ячейку
-              </Button>
-          )}
+          <Space>
+            {user?.role === 'MANAGER' && (
+              <Radio.Group 
+                value={cellActivityFilter} 
+                onChange={(e) => setCellActivityFilter(e.target.value as CellActivityFilter)}
+                optionType="button" buttonStyle="solid"
+              >
+                <Radio.Button value="active">Активные</Radio.Button>
+                <Radio.Button value="inactive">Неактивные</Radio.Button>
+                <Radio.Button value="all">Все</Radio.Button>
+              </Radio.Group>
+            )}
+            {user?.role === 'MANAGER' && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={openCreateCellModal}>
+                    Добавить ячейку
+                </Button>
+            )}
+          </Space>
       </div>
 
-      {loadingCells && storageCells.length > 0 && <div style={{textAlign: 'center', marginBottom: 16}}><Spin><div style={{padding:20, minHeight:50}} /></Spin></div> } {/* Обернул в div для tip */}
+      {loadingCells && storageCells.length > 0 && <div style={{textAlign: 'center', marginBottom: 16}}><Spin tip="Обновление ячеек..."><div style={{padding:10, minHeight:30}} /></Spin></div> }
       {storageCells.length === 0 && !loadingCells ? (
-        <Empty description="Складские ячейки не найдены. Вы можете добавить новую." />
+        <Empty description="Складские ячейки не найдены." />
       ) : (
         <Row gutter={[16, 16]}>
           {storageCells.map((cell) => (
             <Col key={cell.id} xs={24} sm={12} md={8} lg={6} xl={4}>
               <Card
                 hoverable title={cell.code} onClick={() => openCellDetailModal(cell)}
-                style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.09)', height: '100%' }}
-                styles={{ body: { paddingBottom: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: 'calc(100% - 57px)' } }} // ИСПРАВЛЕНО bodyStyle
-                actions={ user?.role === 'MANAGER' ? [ // РАСКОММЕНТИРОВАНО И РАБОТАЕТ
+                style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.09)', height: '100%', backgroundColor: !cell.is_active ? '#fafafa' : undefined, opacity: !cell.is_active ? 0.65 : 1 }}
+                styles={{ body: { paddingBottom: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: 'calc(100% - 57px)' } }}
+                actions={ user?.role === 'MANAGER' ? [
                     <Tooltip title="Редактировать ячейку" key="edit"><Button type="text" shape="circle" icon={<EditOutlined />} onClick={(e) => {e.stopPropagation(); openEditCellModal(cell);}} /></Tooltip>,
                     <Tooltip title="Удалить ячейку" key="delete"><Button type="text" shape="circle" danger icon={<DeleteOutlined />} onClick={(e) => {e.stopPropagation(); handleDeleteCell(cell.id, cell.code);}} /></Tooltip>
                 ] : undefined }
               >
                 <div>
+                    {!cell.is_active && (<Text type="danger" strong style={{ display: 'block', textAlign: 'center', marginBottom: 5 }}>(Неактивна)</Text>)}
                     <Text type="secondary" style={{ marginBottom: '10px', minHeight: '40px', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', }}>
                         {cell.description || 'Нет описания'}
                     </Text>
@@ -305,12 +323,11 @@ const DashboardPage: React.FC = () => {
         open={isCellDetailModalVisible} 
         onCancel={handleCellDetailModalClose}
         footer={null} width={800} 
-        destroyOnHidden // ИСПРАВЛЕНО destroyOnClose
+        destroyOnHidden
       >
         {selectedCell && ( 
           <Spin spinning={loadingModalDetails} tip="Загрузка/обработка...">
-             {/* Оборачиваем контент модалки в div для Spin, если он не имеет других дочерних элементов */}
-            <div> 
+            <div>
                <Row gutter={16} style={{ marginBottom: 16 }}> <Col span={12}><Text strong>Описание: </Text><Text>{selectedCell.description || 'Нет'}</Text></Col> <Col span={12}><Text strong>Макс. вместимость: </Text><Text>{selectedCell.max_items_capacity}</Text></Col> </Row>
                <Row gutter={16} style={{ marginBottom: 16 }}> <Col span={12}><Text strong>Текущая заполненность: </Text><Text>{selectedCell.current_occupancy} ({ selectedCell.max_items_capacity > 0 ? Math.round((selectedCell.current_occupancy / selectedCell.max_items_capacity) * 100) : 0 }%)</Text></Col> <Col span={12}><OccupancyProgress occupancy={selectedCell.current_occupancy} capacity={selectedCell.max_items_capacity} /></Col> </Row>
               <Divider>Содержимое ячейки</Divider>
@@ -361,13 +378,13 @@ const DashboardPage: React.FC = () => {
         confirmLoading={loadingCellForm}
         onOk={() => { cellForm.submit(); }}
         okText={editingCell ? "Сохранить" : "Создать"}
-        destroyOnHidden // ИСПРАВЛЕНО destroyOnClose
+        destroyOnHidden // ИСПРАВЛЕНО
       >
         <Spin spinning={loadingCellForm}>
           <Form
-              form={cellForm}
+              form={cellForm} // PROP ПЕРЕДАН
               layout="vertical"
-              name="cell_form"
+              name="cell_form_manage" 
               onFinish={handleCellFormSubmit}
           >
               <Form.Item name="code" label="Код ячейки" rules={[{ required: true, message: 'Введите код!' }, {pattern: /^[a-zA-Z0-9-]+$/, message: 'Код: буквы, цифры, дефис'}]}>
@@ -379,9 +396,8 @@ const DashboardPage: React.FC = () => {
               <Form.Item name="max_items_capacity" label="Макс. вместимость" rules={[{ required: true, message: 'Укажите вместимость!' }, { type: 'number', min: 1, message: 'Больше 0'}]}>
                 <InputNumber style={{ width: '100%' }} />
               </Form.Item>
-              {/* Убран initialValue с Form.Item, т.к. устанавливается через cellForm.setFieldsValue */}
-              <Form.Item name="is_active" label="Активна" valuePropName="checked" > 
-                <Select placeholder="Выберите статус" /* defaultValue={true} здесь не нужен */ ><Select.Option value={true}>Да</Select.Option><Select.Option value={false}>Нет</Select.Option></Select>
+              <Form.Item name="is_active" label="Статус ячейки" valuePropName="checked" > 
+                <Select placeholder="Выберите статус"><Select.Option value={true}>Активна</Select.Option><Select.Option value={false}>Неактивна</Select.Option></Select>
               </Form.Item>
           </Form>
         </Spin>

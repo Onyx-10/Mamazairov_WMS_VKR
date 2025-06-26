@@ -1,7 +1,6 @@
-// backend/src/storage-cells/storage-cells.controller.ts
 import {
   Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException,
-  Param, ParseUUIDPipe, Patch, Post, Request, UseGuards,
+  Param, ParseUUIDPipe, Patch, Post, Query, Request, UseGuards, // Добавлен Query
 } from '@nestjs/common'
 import { UserRole } from '@prisma/client'
 import { Roles } from '../auth/decorators/roles.decorator'
@@ -9,7 +8,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../auth/guards/roles.guard'
 import { AddProductToCellDto } from './dto/add-product-to-cell.dto'
 import { CreateStorageCellDto } from './dto/create-storage-cell.dto'
-import { UpdateCellContentQuantityDto } from './dto/update-cell-content-quantity.dto'; // Этот DTO используется
+import { UpdateCellContentQuantityDto } from './dto/update-cell-content-quantity.dto'
 import { UpdateStorageCellDto } from './dto/update-storage-cell.dto'
 import { CellContentDetailed, StorageCellsService, StorageCellWithDetails } from './storage-cells.service'
 
@@ -18,8 +17,6 @@ import { CellContentDetailed, StorageCellsService, StorageCellWithDetails } from
 export class StorageCellsController {
   constructor(private readonly storageCellsService: StorageCellsService) {}
 
-  // --- CRUD для самих ячеек ---
-  // ... (методы create, findAll, findOne (для ячеек), update (для ячеек), remove (для ячеек) остаются БЕЗ ИЗМЕНЕНИЙ)
   @Post()
   @Roles(UserRole.MANAGER)
   @HttpCode(HttpStatus.CREATED)
@@ -29,8 +26,15 @@ export class StorageCellsController {
 
   @Get()
   @Roles(UserRole.MANAGER, UserRole.WAREHOUSE_KEEPER)
-  async findAll(): Promise<StorageCellWithDetails[]> {
-    return this.storageCellsService.findAll();
+  async findAll(@Query('isActive') isActiveQuery?: string): Promise<StorageCellWithDetails[]> {
+    let isActiveFilter: boolean | undefined = undefined;
+    if (isActiveQuery === 'true') {
+      isActiveFilter = true;
+    } else if (isActiveQuery === 'false') {
+      isActiveFilter = false;
+    }
+    // Если isActiveQuery не 'true' и не 'false', фильтр не применяется
+    return this.storageCellsService.findAll(isActiveFilter);
   }
 
   @Get(':id')
@@ -58,9 +62,6 @@ export class StorageCellsController {
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.storageCellsService.remove(id);
   }
-
-
-  // --- Эндпоинты для управления содержимым конкретной ячейки ---
 
   @Get(':cellId/contents')
   @Roles(UserRole.MANAGER, UserRole.WAREHOUSE_KEEPER)
@@ -90,7 +91,7 @@ export class StorageCellsController {
   @HttpCode(HttpStatus.OK)
   async updateProductQuantityInCell(
     @Param('cellContentId', ParseUUIDPipe) cellContentId: string,
-    @Body() updateDto: UpdateCellContentQuantityDto, // DTO с { quantity: number }
+    @Body() updateDto: UpdateCellContentQuantityDto,
     @Request() req,
   ): Promise<CellContentDetailed | { message: string }> {
     const userId = req.user.id;
@@ -105,25 +106,16 @@ export class StorageCellsController {
     return result;
   }
 
-  // Удалить ПОЛНОСТЬЮ товар (запись CellContent) из ячейки
-  // Теперь вызывает updateProductQuantityInCell с quantity = 0
-  @Delete('contents/:cellContentId')
+  @Delete('contents/:cellContentId') 
   @Roles(UserRole.MANAGER, UserRole.WAREHOUSE_KEEPER)
-  @HttpCode(HttpStatus.OK) // Возвращаем сообщение, т.к. сервис теперь может вернуть null или объект
+  @HttpCode(HttpStatus.OK) 
   async deleteProductFromCell(
     @Param('cellContentId', ParseUUIDPipe) cellContentId: string,
     @Request() req,
-  ): Promise<{ message: string }> { // Явно указываем тип возвращаемого значения
+  ): Promise<{ message: string }> {
     const userId = req.user.id;
-    const result = await this.storageCellsService.updateProductQuantityInCell(
-      cellContentId,
-      0, // Устанавливаем количество в 0 для удаления
-      userId,
-    );
-    // Сервис updateProductQuantityInCell вернет null, если запись была удалена.
-    // Здесь мы просто возвращаем сообщение об успехе.
-    // В реальном приложении можно было бы вернуть 204 No Content, если result === null,
-    // но это потребует использования @Res() и response.status(204).send().
-    return { message: `Product content (ID: ${cellContentId}) processed for removal.` };
+    // Вызываем updateProductQuantityInCell с quantity = 0 для удаления
+    await this.storageCellsService.updateProductQuantityInCell(cellContentId, 0, userId);
+    return { message: `Product content (ID: ${cellContentId}) successfully removed/zeroed.` };
   }
 }
