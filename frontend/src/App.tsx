@@ -1,46 +1,66 @@
 // frontend/src/App.tsx
+
+// Правильные импорты из react-router-dom
 import { Navigate, Route, Routes } from 'react-router-dom'
+
+// Импорты страниц
+import DashboardPage from './pages/DashboardPage'
+import LoginPage from './pages/LoginPage'
+import ProductsPage from './pages/ProductsPage'
+import UsersPage from './pages/UsersPage'
+// ИСПРАВЛЕНО: Добавлены импорты для новых страниц приёмки и отгрузки
+import InboundShipmentsPage from './pages/InboundShipmentsPage'
+import OutboundShipmentsPage from './pages/OutboundShipmentsPage'
+
+// Импорты для аутентификации и макета
 import PrivateRoute from './components/auth/PrivateRoute'
 import { useAuth } from './contexts/AuthContext'
 import AppLayout from './layouts/AppLayout'
-import DashboardPage from './pages/DashboardPage'
-import InboundShipmentsPage from './pages/InboundShipmentsPage'
-import LoginPage from './pages/LoginPage'
-import OutboundShipmentsPage from './pages/OutboundShipmentsPage'
-import ProductsPage from './pages/ProductsPage'; // Создай заглушку пока
-import UsersPage from './pages/UsersPage'
 
 function App() {
   const { isAuthenticated, loading } = useAuth();
 
+  // Показываем заглушку, пока проверяется статус аутентификации
   if (loading) {
-    return <div>Loading application state...</div>; // Или глобальный спиннер на весь экран
+    // Здесь можно разместить более красивый компонент спиннера
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Загрузка...</div>;
   }
 
   return (
     <Routes>
-      {/* Публичный роут для страницы входа */}
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+      {/* Публичный роут для страницы входа: если пользователь уже вошел, перенаправляем на дашборд */}
+      <Route 
+        path="/login" 
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} 
+      />
 
-      {/* Защищенные роуты */}
-      <Route element={<PrivateRoute />}> {/* Обертка для всех защищенных роутов */}
+      {/* Группа защищенных роутов, доступных только после входа */}
+      <Route element={<PrivateRoute />}>
+        {/* Все страницы внутри этой группы будут использовать общий макет AppLayout */}
         <Route path="/dashboard" element={<AppLayout><DashboardPage /></AppLayout>} />
         <Route path="/products" element={<AppLayout><ProductsPage /></AppLayout>} />
-        <Route path="/inbound-shipments" element={<AppLayout><InboundShipmentsPage /></AppLayout>} />
-        <Route path="/outbound-shipments" element={<AppLayout><OutboundShipmentsPage /></AppLayout>} />
         <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
-        {/* Другие защищенные роуты */}
+        
+        {/* ИСПРАВЛЕНО: Добавлены маршруты для приёмки и отгрузки */}
+        <Route 
+          path="/inbound-shipments" 
+          element={<AppLayout><InboundShipmentsPage /></AppLayout>} 
+        />
+        <Route 
+          path="/outbound-shipments" 
+          element={<AppLayout><OutboundShipmentsPage /></AppLayout>} 
+        />
       </Route>
       
-      {/* Корневой путь: если аутентифицирован -> дашборд, иначе -> логин */}
+      {/* Корневой роут: перенаправляет на дашборд (если вошел) или на страницу логина (если не вошел) */}
       <Route 
         path="/" 
         element={
           isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
         } 
       />
-
-      {/* Роут для страницы не найдена (404) - можно добавить позже */}
+      
+      {/* Опционально: роут для страницы "Не найдено" */}
       {/* <Route path="*" element={<AppLayout><NotFoundPage /></AppLayout>} /> */}
     </Routes>
   );
