@@ -1,3 +1,5 @@
+// search.service.ts
+
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 
@@ -6,14 +8,12 @@ export class SearchService {
   constructor(private prisma: PrismaService) {}
 
   async globalSearch(term: string) {
-    if (!term || term.trim().length < 2) { // Искать от 2 символов
-      return { results: [] };
+    if (!term || term.trim().length < 2) {
+      return [];
     }
 
-    const searchTerm = `%${term.toLowerCase()}%`; // Для case-insensitive LIKE поиска
-
-    // Поиск по товарам (по имени, SKU, описанию)
-    const products = await this.prisma.product.findMany({
+    // 1. Поиск по товарам с включением данных о местоположении
+    const productsFromDb = await this.prisma.product.findMany({
       where: {
         OR: [
           { name:        { contains: term, mode: 'insensitive' } },
@@ -21,11 +21,45 @@ export class SearchService {
           { description: { contains: term, mode: 'insensitive' } },
         ],
       },
-      select: { id: true, name: true, sku: true }, // Выбираем нужные поля
-      take: 10, // Ограничиваем количество результатов
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        cell_contents: {
+          where: {
+            // ИСПРАВЛЕНО: `storageCell` заменено на `storage_cell`
+            storage_cell: { is_active: true }
+          },
+          select: {
+            // ИСПРАВЛЕНО: `storageCell` заменено на `storage_cell`
+            storage_cell: {
+              select: {
+                code: true
+              }
+            }
+          }
+        }
+      },
+      take: 10,
     });
 
-    // Поиск по ячейкам (по коду, описанию)
+    // 2. Форматируем товары для ответа, добавляя поле `locations`
+    const products = productsFromDb.map(p => {
+      const locations = p.cell_contents.map(content => ({
+        // ИСПРАВЛЕНО: `content.storageCell` заменено на `content.storage_cell`
+        code: content.storage_cell.code
+      }));
+
+      return {
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        type: 'product' as const,
+        locations: locations,
+      };
+    });
+    
+    // Поиск по ячейкам
     const storageCells = await this.prisma.storageCell.findMany({
       where: {
         OR: [
@@ -38,15 +72,12 @@ export class SearchService {
       take: 10,
     });
 
-    // Формируем результаты с указанием типа
+    // Формируем финальный результат
     const results = [
-      ...products.map(p => ({ ...p, type: 'product' })),
-      ...storageCells.map(sc => ({ ...sc, type: 'storage-cell' })),
+      ...products,
+      ...storageCells.map(sc => ({ ...sc, type: 'storage-cell' as const })),
     ];
     
-    // Можно добавить поиск по содержимому ячеек (найти ячейки, где есть товар X)
-    // или товары, которые есть в ячейке с кодом Y - это более сложные запросы.
-
-    return { results };
+    return results;
   }
 }

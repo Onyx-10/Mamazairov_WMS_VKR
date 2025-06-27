@@ -51,7 +51,7 @@ type CellActivityFilter = 'all' | 'active' | 'inactive';
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
 
-  // Состояния для поиска (РАСКОММЕНТИРОВАНО)
+  // Состояния для поиска
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -81,7 +81,6 @@ const DashboardPage: React.FC = () => {
       if (cellActivityFilter === 'active') filterQueryParamString = '?is_active=true';
       else if (cellActivityFilter === 'inactive') filterQueryParamString = '?is_active=false';
       
-      // ИСПРАВЛЕНО: Заменен вызов fetchStorageCells на прямой вызов apiClient для поддержки параметров
       const response = await apiClient.get<StorageCell[]>(`/storage-cells${filterQueryParamString}`);
       setStorageCells(response.data);
     } catch (error) { message.error('Не удалось загрузить ячейки склада'); console.error('Load cells error:', error); } 
@@ -95,7 +94,6 @@ const DashboardPage: React.FC = () => {
         const currentModalLoader = isCellDetailModalVisible ? setLoadingModalDetails : setLoadingCellForm;
         currentModalLoader(true);
         try {
-          // Загружаем только один раз
           if (availableProducts.length === 0) {
               const response = await apiClient.get<ProductBasicInfo[]>('/products?limit=1000&fields=id,name,sku,unit_of_measure');
               setAvailableProducts(response.data || []);
@@ -108,15 +106,17 @@ const DashboardPage: React.FC = () => {
     }
   }, [isCellDetailModalVisible, isEditOrCreateCellModalVisible, availableProducts.length]);
 
-  // ИСПРАВЛЕНО: Функция поиска и связанные с ней элементы раскомментированы
+  // ИСПРАВЛЕНО: Функция поиска теперь использует правильный URL и обрабатывает ответ
   const handleGlobalSearch = async (value: string) => {
     setSearchTerm(value);
     if (!value.trim()) { setSearchResults([]); return; }
     setLoadingSearch(true);
     try {
-      // Предполагаем, что эндпоинт поиска возвращает объект с полем results
-      const response = await apiClient.get<{ results: SearchResultItem[] }>(`/search/all?term=${encodeURIComponent(value)}`);
-      setSearchResults(response.data.results || []);
+      // ИСПРАВЛЕНО: URL изменен с `/search/all` на `/search`
+      // ИСПРАВЛЕНО: Ожидаемый тип данных - массив SearchResultItem[], а не объект { results: [...] }
+      const response = await apiClient.get<SearchResultItem[]>(`/search?term=${encodeURIComponent(value)}`);
+      // ИСПРАВЛЕНО: Прямое использование response.data, так как бэкенд возвращает массив
+      setSearchResults(response.data || []);
     } catch (error) { message.error('Ошибка при выполнении поиска'); setSearchResults([]); console.error('Global search error:', error); }
     finally { setLoadingSearch(false); }
   };
@@ -182,7 +182,6 @@ const DashboardPage: React.FC = () => {
     } finally { setLoadingModalDetails(false); }
   };
   
-  // ИСПРАВЛЕНО: Реализованы функции управления модальным окном ячейки
   const openCreateCellModal = () => {
     setEditingCell(null);
     cellForm.resetFields();
@@ -267,7 +266,6 @@ const DashboardPage: React.FC = () => {
       <Title level={2} style={{ marginBottom: '20px' }}>Главная панель</Title>
       <Row gutter={[16,24]} style={{marginBottom: 24}}>
         <Col span={24}> <GlobalSearchBar onSearch={handleGlobalSearch} loading={loadingSearch} /> </Col>
-        {/* ИСПРАВЛЕНО: JSX для поиска раскомментирован */}
         {loadingSearch && <Col span={24} style={{ textAlign: 'center' }}><Spin tip="Поиск..."><div style={{padding:20, minHeight:50}}/></Spin></Col>}
         {!loadingSearch && searchTerm && searchResults.length === 0 && ( <Col span={24}><Empty description={`По запросу "${searchTerm}" ничего не найдено.`} /></Col> )}
         {searchResults.length > 0 && (
