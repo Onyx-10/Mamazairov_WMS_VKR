@@ -1,0 +1,32 @@
+# docker-compose.yml (в корне проекта)
+
+services:
+  # Сервис бэкенда
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    # ИСПРАВЛЕНО: Загружаем переменные из .env файла
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - db
+
+  # Сервис базы данных (только для локальной разработки)
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      # ИСПРАВЛЕНО: Устанавливаем пароль
+      POSTGRES_USER: price
+      POSTGRES_PASSWORD: 6134
+      POSTGRES_DB: mamazairov_wms_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
